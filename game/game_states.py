@@ -57,6 +57,7 @@ class TestGameState(NormalGameState):
     def __init__(self, game_object : 'Game'):
         self.game = game_object
         self.player : TestPlayer = TestPlayer.spawn(pygame.Vector2(random.randint(0, 960),random.randint(0, 540)))
+        self.board : ChessBoard = ChessBoard.spawn()
 
     def main_logic(self, delta : float):
         super().main_logic(delta)
@@ -64,7 +65,7 @@ class TestGameState(NormalGameState):
 class ChessBaseGameState(NormalGameState):
     def __init__(self, game_object : 'Game'):
         self.game = game_object
-        self.board
+        #self.board
 
 class PlayerTurnGameState(NormalGameState):
     def __init__(self, game_object : 'Game'):
@@ -102,6 +103,10 @@ def runtime_imports():
     global game, TestPlayer      
     import game.test_player
     from game.test_player import TestPlayer
+
+    global ChessBoard
+    import game.chess_sprites
+    from game.chess_sprites import ChessBoard
 
 
 class GameStates:
