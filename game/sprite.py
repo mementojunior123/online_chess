@@ -367,6 +367,7 @@ class Sprite:
             new_event = pygame.event.Event(Sprite.SPRITE_CLICKED, {'main_hit' : hit[-1], 'all_hit' : hit, 'pos' : press_pos,
                                                                    'finger_id' : -1})
             pygame.event.post(new_event)
+            #print(event.button)
     
     @classmethod
     def handle_touch_event(cls, event : pygame.Event):

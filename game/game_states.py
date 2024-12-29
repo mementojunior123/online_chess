@@ -3,6 +3,8 @@ from typing import Any
 from math import floor
 from random import shuffle, choice
 import random
+import game.chess_module
+import game.sprite
 import utils.tween_module as TweenModule
 from utils.ui.ui_sprite import UiSprite
 from utils.ui.textbox import TextBox
@@ -33,6 +35,9 @@ class GameState:
     def handle_mouse_event(self, event : pygame.Event):
         pass
 
+    def cleanup(self):
+        pass
+
 class NormalGameState(GameState):
     def main_logic(self, delta : float):
         Sprite.update_all_sprites(delta)
@@ -58,22 +63,76 @@ class TestGameState(NormalGameState):
         self.game = game_object
         self.player : TestPlayer = TestPlayer.spawn(pygame.Vector2(random.randint(0, 960),random.randint(0, 540)))
         self.board : ChessBoard = ChessBoard.spawn()
+        game.chess_sprites.do_connections()
 
     def main_logic(self, delta : float):
         super().main_logic(delta)
+    
+    def cleanup(self):
+        game.chess_sprites.remove_connections()
 
 class ChessBaseGameState(NormalGameState):
     def __init__(self, game_object : 'Game'):
         self.game = game_object
-        #self.board
+        self.board : ChessBoard = ChessBoard.spawn()
+        self.held_piece : ChessPiece|None = None
+        self.do_connections()
+    
+    def main_logic(self, delta : float):
+        super().main_logic(delta)
+    
+    def handle_mouse_event(self, event : pygame.Event):
+        if event.type == game.sprite.Sprite.SPRITE_CLICKED:
+            main_hit : Sprite = event.main_hit
+            press_pos : tuple[int, int] = event.pos
+            finger_id : int = event.finger_id
+            if isinstance(main_hit, ChessPiece) and not self.held_piece:
+                main_hit.grab(finger_id, press_pos)
+                self.held_piece = main_hit
 
-class PlayerTurnGameState(NormalGameState):
+    
+    def handle_piece_release(self, event : pygame.Event):
+        piece : ChessPiece = event.piece
+        drag_id : int = event.drag_id
+        new_visual_coords : tuple[int, int] = self.board.real_to_visual_coords(piece.position.x, piece.position.y)
+        already_there : ChessPiece|None = self.board.get_at(new_visual_coords)
+        if already_there and already_there != piece:
+            already_there.capture()
+        piece.settle_on_board(new_visual_coords)
+        self.held_piece = None
+    
+    def do_connections(self):
+        game.chess_sprites.do_connections()
+        core_object.event_manager.bind(ChessPiece.PIECE_RELEASED, self.handle_piece_release)
+    
+    def remove_connections(self):
+        game.chess_sprites.remove_connections()
+
+    def cleanup(self):
+        self.remove_connections()
+
+class PVPGameState(ChessBaseGameState):
     def __init__(self, game_object : 'Game'):
-        self.game = game_object
+        super().__init__(game_object)
 
     def main_logic(self, delta : float):
         super().main_logic(delta)
         pass
+
+    def cleanup(self):
+        super().cleanup()
+
+
+class PvsCPUGameState(ChessBaseGameState):
+    def __init__(self, game_object : 'Game'):
+        super().__init__(game_object)
+
+    def main_logic(self, delta : float):
+        super().main_logic(delta)
+        pass
+
+    def cleanup(self):
+        super().cleanup()
 
 class PausedGameState(GameState):
     def __init__(self, game_object : 'Game', previous : GameState):
@@ -104,12 +163,15 @@ def runtime_imports():
     import game.test_player
     from game.test_player import TestPlayer
 
-    global ChessBoard
+    global ChessBoard, ChessPiece
     import game.chess_sprites
-    from game.chess_sprites import ChessBoard
+    from game.chess_sprites import ChessBoard, ChessPiece
 
 
 class GameStates:
     NormalGameState = NormalGameState
     TestGameState = TestGameState
     PausedGameState = PausedGameState
+    ChessBaseGameState = ChessBaseGameState
+    PVPGameState = PVPGameState
+    PvsCPUGameState = PvsCPUGameState

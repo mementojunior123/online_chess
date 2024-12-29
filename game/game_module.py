@@ -37,7 +37,7 @@ class Game:
         self.game_timer = Timer(-1)
         self.game_data = {}
         self.make_connections()
-        self.state = self.STATES.TestGameState(self)
+        self.state = self.STATES.PVPGameState(self)
 
         
     def alert_player(self, text : str, alert_speed : float = 1):
@@ -108,6 +108,7 @@ class Game:
         pygame.event.post(new_event)
     
     def end_game(self):
+        self.state.cleanup()
         self.remove_connections()
         self.cleanup()
 

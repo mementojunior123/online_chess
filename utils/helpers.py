@@ -146,14 +146,19 @@ def make_circle(radius : int, color : ColorType|str, colorkey : ColorType|str = 
     pygame.draw.circle(surface, color, (radius, radius), radius)
     return surface
 
-
-def load_alpha_to_colorkey(path : str, colorkey : ColorType|str):
-    image = pygame.image.load(path).convert_alpha()
+def convert_alpha_to_colorkey(image : pygame.Surface, colorkey : ColorType|str) -> pygame.Surface:
     new_surf = pygame.surface.Surface(image.get_size())
     new_surf.set_colorkey(colorkey)
     new_surf.fill(colorkey)
     new_surf.blit(image, (0,0))
     return new_surf
+
+def load_alpha_to_colorkey(path : str, colorkey : ColorType|str) -> pygame.Surface:
+    image = pygame.image.load(path).convert_alpha()
+    return convert_alpha_to_colorkey(image, colorkey)
+
+
+
 
 def tuple_vec_average(l : list[tuple[float, float]]) -> float:
     x_sum : float = 0
