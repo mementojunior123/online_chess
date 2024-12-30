@@ -1,6 +1,7 @@
 
 from enum import Enum, IntEnum
-from typing import Any, TypedDict, NotRequired
+from typing import Any, TypedDict, NotRequired, Literal
+from utils.helpers import sign
 
 class ChessMoveExtraInfo(TypedDict):
     promotion_choice : NotRequired[int]
@@ -40,23 +41,74 @@ class ChessGame:
         self.castling_rights : dict[TeamType, bool] = {TeamType.WHITE : True, TeamType.BLACK : True}
         self.captured_pieces : dict[TeamType, list[PieceType]] = {TeamType.WHITE : [], TeamType.BLACK : []}
     
-    def make_move(self, start_pos : tuple[int, int], end_pos : tuple[int, int], bonus_info : ChessMoveExtraInfo) -> bool:
+    def make_move(self, start_pos : tuple[int, int], end_pos : tuple[int, int], bonus_info : ChessMoveExtraInfo) -> list[dict[str, Any]]|Literal[False]:
+        bonus_instructions : list[dict[str, Any]] = []
         PT = PieceType
         selected : PieceType = self.get_at(*start_pos)
         if selected == PT.EMPTY:
             return False
-        target : PieceType = self.get_at(*start_pos)
+        target : PieceType = self.get_at(*end_pos)
         if target != PT.EMPTY:
             self.captured_pieces[self.get_piece_color(target)].append(target)
+            bonus_instructions.append({'type' : 'capture_at', 'pos' : end_pos})
         self.set_at(*end_pos, selected)
         self.change_turn()
+        return bonus_instructions
     
     def validate_move(self, start_pos : tuple[int, int], end_pos : tuple[int, int], bonus_info : ChessMoveExtraInfo, return_true : bool = False) -> bool:
         if return_true: return True
         selected_piece : PieceType = self.get_at(*start_pos)
         if selected_piece == PieceType.EMPTY: return False
         if self.get_piece_color(selected_piece) != self.current_turn: return False
+        if start_pos[0] == end_pos[0] and start_pos[1] == end_pos[1]: return False
+        target : PieceType|None = self.get_at(*end_pos)
+        if (self.get_piece_color(target) == self.get_piece_color(selected_piece)) and target is not None: return False
         return True
+    
+    def validate_rook_movement(self, start_pos : tuple[int, int], end_pos : tuple[int, int], team : TeamType) -> bool:
+        delta_x : int = end_pos[0] - start_pos[0]
+        delta_y : int = end_pos[1] - start_pos[1]
+        abs_x : int = abs(delta_x)
+        abs_y : int = abs(delta_y)
+        direction_x : int = sign(delta_x)
+        direction_y : int = sign(delta_y)
+        if abs_x > 0 and abs_y > 0: return False
+        if abs_x == 0 and abs_y == 0: return False
+        x, y = start_pos
+        while (True):
+            x += direction_x
+            y += direction_y
+            current_tile : PieceType = self.get_at(x, y)
+            if x == end_pos[0] and y == end_pos[1]:
+                return team != self.get_piece_color(current_tile)
+            if current_tile != PieceType.EMPTY:
+                return False
+        return False
+    
+    def validate_bishop_movement(self, start_pos : tuple[int, int], end_pos : tuple[int, int], team : TeamType) -> bool:
+        delta_x : int = end_pos[0] - start_pos[0]
+        delta_y : int = end_pos[1] - start_pos[1]
+        abs_x : int = abs(delta_x)
+        abs_y : int = abs(delta_y)
+        direction_x : int = sign(delta_x)
+        direction_y : int = sign(delta_y)
+        if abs_x != abs_y: return False
+        if abs_x == 0: return False
+        x, y = start_pos
+        while (True):
+            x += direction_x
+            y += direction_y
+            current_tile : PieceType = self.get_at(x, y)
+            if x == end_pos[0] and y == end_pos[1]:
+                return team != self.get_piece_color(current_tile)
+            if current_tile != PieceType.EMPTY:
+                return False
+        return False
+
+    def validate_queen_movement(self, start_pos : tuple[int, int], end_pos : tuple[int, int], team : TeamType) -> bool:
+        return self.validate_rook_movement(start_pos, end_pos, team) or self.validate_bishop_movement(start_pos, end_pos, team)
+
+
     
     def change_turn(self):
         self.current_turn = TeamType.WHITE if self.current_turn == TeamType.BLACK else TeamType.BLACK

@@ -87,17 +87,40 @@ class ChessBaseGameState(NormalGameState):
             press_pos : tuple[int, int] = event.pos
             finger_id : int = event.finger_id
             if isinstance(main_hit, ChessPiece) and not self.held_piece:
+                if not self.is_piece_grabbable(main_hit): return
                 main_hit.grab(finger_id, press_pos)
                 self.held_piece = main_hit
-
+    
+    def is_piece_grabbable(self, piece : 'ChessPiece') -> bool:
+        if game.chess_module.ChessGame.get_piece_color(piece.type) != self.board.game.current_turn:
+            return False
+        return True
     
     def handle_piece_release(self, event : pygame.Event):
         piece : ChessPiece = event.piece
         drag_id : int = event.drag_id
+        old_board_coords : tuple[int, int] = self.board.visual_to_board_coords(*piece.visual_coords, self.board.display_style)
         new_visual_coords : tuple[int, int] = self.board.real_to_visual_coords(piece.position.x, piece.position.y)
-        already_there : ChessPiece|None = self.board.get_at(new_visual_coords)
-        if already_there and already_there != piece:
-            already_there.capture()
+        new_board_coords : tuple[int, int] = self.board.visual_to_board_coords(*new_visual_coords, self.board.display_style)
+        if not (0 <= new_visual_coords[0] <= 7) or not (0 <= new_visual_coords[1] <= 7):
+            piece.settle_on_board()
+            return
+        if not self.board.game.validate_move(old_board_coords, new_board_coords, {}):
+            self.game.alert_player('Illegal Move!', 1.8)
+            piece.settle_on_board()
+            self.held_piece = None
+            return
+        extra_instructions = self.board.game.make_move(old_board_coords, new_board_coords, {})
+        if extra_instructions is False:
+            self.game.alert_player('Move is invalid!', 1.8)
+            piece.settle_on_board()
+            self.held_piece = None
+            return
+        for instruction in extra_instructions:
+            instruction_type : str = instruction['type']
+            if instruction_type == 'capture_at':
+                to_capture : ChessPiece|None = self.board.get_at(self.board.board_to_visual_coords(*instruction['pos'], self.board.display_style))
+                if to_capture: to_capture.capture()
         piece.settle_on_board(new_visual_coords)
         self.held_piece = None
     

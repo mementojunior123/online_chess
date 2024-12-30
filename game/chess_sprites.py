@@ -232,7 +232,7 @@ class ChessPiece(Sprite):
     def settle_on_board(self, new_visual_coords : tuple[int, int]|None = None):
         if self.captured: return
         self.end_grab()
-        self.visual_coords = list(new_visual_coords) or self.visual_coords
+        self.visual_coords = list(new_visual_coords) if new_visual_coords else self.visual_coords
         self.position = self.owner.visual_to_real_coords_center(*self.visual_coords)
         self.anchored = True
     
