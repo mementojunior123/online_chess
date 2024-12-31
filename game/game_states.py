@@ -90,6 +90,7 @@ class ChessBaseGameState(NormalGameState):
                 if not self.is_piece_grabbable(main_hit): return
                 main_hit.grab(finger_id, press_pos)
                 self.held_piece = main_hit
+                self.held_piece.zindex = 5
     
     def is_piece_grabbable(self, piece : 'ChessPiece') -> bool:
         if game.chess_module.ChessGame.get_piece_color(piece.type) != self.board.game.current_turn:
@@ -104,25 +105,60 @@ class ChessBaseGameState(NormalGameState):
         new_board_coords : tuple[int, int] = self.board.visual_to_board_coords(*new_visual_coords, self.board.display_style)
         if not (0 <= new_visual_coords[0] <= 7) or not (0 <= new_visual_coords[1] <= 7):
             piece.settle_on_board()
+            piece.zindex = 0
+            self.held_piece = None
+            return
+        if piece.visual_coords[0] == new_visual_coords[0] and piece.visual_coords[1] == new_visual_coords[1]:
+            piece.settle_on_board()
+            piece.zindex = 0
+            self.held_piece = None
             return
         if not self.board.game.validate_move(old_board_coords, new_board_coords, {}):
             self.game.alert_player('Illegal Move!', 1.8)
             piece.settle_on_board()
+            piece.zindex = 0
             self.held_piece = None
             return
         extra_instructions = self.board.game.make_move(old_board_coords, new_board_coords, {})
         if extra_instructions is False:
             self.game.alert_player('Move is invalid!', 1.8)
             piece.settle_on_board()
+            piece.zindex = 0
             self.held_piece = None
             return
+        piece.settle_on_board(new_visual_coords)
+        self.held_piece = None
+        piece.zindex = 0
         for instruction in extra_instructions:
             instruction_type : str = instruction['type']
             if instruction_type == 'capture_at':
-                to_capture : ChessPiece|None = self.board.get_at(self.board.board_to_visual_coords(*instruction['pos'], self.board.display_style))
-                if to_capture: to_capture.capture()
-        piece.settle_on_board(new_visual_coords)
-        self.held_piece = None
+                ignore_count : int = 0
+                while True:
+                    to_capture : ChessPiece|None = self.board.get_at(self.board.board_to_visual_coords(*instruction['pos'], self.board.display_style), ignore_count)
+                    if not to_capture: break
+                    if to_capture == piece: 
+                        ignore_count += 1
+                        continue
+                    to_capture.capture()
+                    break
+            elif instruction_type == 'move_piece_to':
+                to_move : ChessPiece|None = self.board.get_at(self.board.board_to_visual_coords(*instruction['start_pos'], self.board.display_style))
+                if to_move: to_move.settle_on_board(self.board.board_to_visual_coords(*instruction['end_pos'], self.board.display_style))
+            elif instruction_type == 'change_type':
+                target_pos : tuple[int, int] = self.board.board_to_visual_coords(*instruction['pos'], self.board.display_style)
+                target : ChessPiece|None = self.board.get_at(target_pos)
+                if target: target.switch_type(instruction['new_type'])
+            elif instruction_type == 'check':
+                self.game.alert_player('Check!')
+            elif instruction_type == 'checkmate':
+                self.switch_to_gameover('Checkmate!')
+            elif instruction_type == 'stalemate':
+                self.switch_to_gameover("Stalemate!")
+    
+    def switch_to_gameover(self, message : str):
+        core_object.event_manager.unbind(ChessPiece.PIECE_RELEASED, self.handle_piece_release)
+        self.game.state = LocalGameOverGameState(self.game, self.board, message)
+
     
     def do_connections(self):
         game.chess_sprites.do_connections()
@@ -130,6 +166,7 @@ class ChessBaseGameState(NormalGameState):
     
     def remove_connections(self):
         game.chess_sprites.remove_connections()
+        core_object.event_manager.unbind(ChessPiece.PIECE_RELEASED, self.handle_piece_release)
 
     def cleanup(self):
         self.remove_connections()
@@ -156,6 +193,22 @@ class PvsCPUGameState(ChessBaseGameState):
 
     def cleanup(self):
         super().cleanup()
+
+class LocalGameOverGameState(NormalGameState):
+    def __init__(self, game_object : 'Game', board : 'ChessBoard', message : str):
+        self.game = game_object
+        self.board = board
+        self.game.alert_player(message)
+        self.close_timer : Timer = Timer(3, time_source=game_object.game_timer.get_time)
+        game.chess_sprites.remove_connections()
+    
+    def main_logic(self, delta : float):
+        if self.close_timer.isover():
+            self.game.fire_gameover_event()
+
+    def cleanup(self):
+        game.chess_sprites.remove_connections()
+
 
 class PausedGameState(GameState):
     def __init__(self, game_object : 'Game', previous : GameState):
@@ -198,3 +251,4 @@ class GameStates:
     ChessBaseGameState = ChessBaseGameState
     PVPGameState = PVPGameState
     PvsCPUGameState = PvsCPUGameState
+    LocalGameOverGameState = LocalGameOverGameState

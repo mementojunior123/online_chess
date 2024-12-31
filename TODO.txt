@@ -1,0 +1,16 @@
+Priority list
+-----------Chess------------
+---High---
+-Implement promotion to a queen (Done)
+-Implement castling (Done)
+-Implement check (Done)
+-Implement checkmate and stalemate (Done)
+---Medium----
+-Implement en passant (Done)
+---Low----
+
+-Implement underpromotion
+--------Networking----------
+----High---
+----Med----
+----Low----

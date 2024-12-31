@@ -15,6 +15,7 @@ class BoardDisplayStyle(Enum):
 
 class ChessBoard(Sprite):
     TILE_SIZE = 61
+    IMAGE_SIZE = 60
     LIGHT_COLOR = '#ffffdd'
     DARK_COLOR = '#86a666'
     test_image = pygame.surface.Surface((TILE_SIZE * 8, TILE_SIZE * 8))
@@ -49,6 +50,7 @@ class ChessBoard(Sprite):
     
     def get_at(self, visual_coords : tuple[int, int], ignore : int = 0) -> Union['ChessPiece',None]:
         for piece in self.pieces:
+            if piece.captured: continue
             if piece.visual_coords[0] == visual_coords[0] and piece.visual_coords[1] == visual_coords[1]:
                 if ignore: ignore -= 1
                 else: return piece
@@ -144,7 +146,8 @@ class ChessPiece(Sprite):
     active_elements : list['ChessPiece'] = []
 
     PIECE_IMAGES : dict[chess_module.PieceType, pygame.Surface] = {piece_type : 
-    convert_alpha_to_colorkey(pygame.image.load_sized_svg(f'assets/graphics/chess_sets/regular/{piece_type.name.lower()}.svg', (60, 60)), (0, 255, 255)) 
+    convert_alpha_to_colorkey(pygame.image.load_sized_svg(f'assets/graphics/chess_sets/regular/{piece_type.name.lower()}.svg', 
+                                                          (ChessBoard.IMAGE_SIZE, ChessBoard.IMAGE_SIZE)), (0, 255, 255)) 
     for piece_type in chess_module.PieceType if piece_type != chess_module.PieceType.EMPTY}
 
     def __init__(self):
@@ -192,11 +195,19 @@ class ChessPiece(Sprite):
         cls.unpool(element)
         return element
     
+    def switch_type(self, new_type : chess_module.PieceType):
+        if new_type == chess_module.PieceType.EMPTY: return
+        self.type = new_type
+        self.image = ChessPiece.PIECE_IMAGES[new_type]
+
+    
     def grab(self, grab_id : int, grab_pos : tuple[int, int]):
         if self.drag_id: return
         if self.captured: return
         self.drag_id = grab_id
         self.drag_offset = (self.position - grab_pos)
+        if self.drag_offset.magnitude() > 2:
+            self.drag_offset.scale_to_length(2)
         self.anchored = False
         self.drag_timer = Timer(-1, time_source=core_object.game.game_timer.get_time)
         self.no_hold_drag = False
