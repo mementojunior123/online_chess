@@ -97,6 +97,42 @@ class ChessBaseGameState(NormalGameState):
             return False
         return True
     
+    def sync_move(self, start_pos : tuple[int, int], end_pos : tuple[int, int], bonus_info : game.chess_module.ChessMoveExtraInfo):
+        extra_instructions = self.board.game.make_move(start_pos, end_pos, bonus_info)
+        if extra_instructions is False: return
+        piece : ChessPiece|None = self.board.get_at_board_coords(start_pos)
+        piece.settle_on_board(self.board.board_to_visual_coords(*end_pos, self.board.display_style))
+        for instruction in extra_instructions:
+            self.handle_sync_instruction(instruction)
+    
+    def handle_sync_instruction(self, instruction : dict[str, Any], moved_piece : ChessPiece):
+        instruction_type : str = instruction['type']
+        if instruction_type == 'capture_at':
+            ignore_count : int = 0
+            while True:
+                to_capture : ChessPiece|None = self.board.get_at(self.board.board_to_visual_coords(*instruction['pos'], self.board.display_style), ignore_count)
+                if not to_capture: break
+                if to_capture == moved_piece: 
+                    ignore_count += 1
+                    continue
+                to_capture.capture()
+                break
+        elif instruction_type == 'move_piece_to':
+            to_move : ChessPiece|None = self.board.get_at_board_coords(instruction['start_pos'])
+            if to_move: to_move.settle_on_board(self.board.board_to_visual_coords(*instruction['end_pos'], self.board.display_style))
+        elif instruction_type == 'change_type':
+            target_pos : tuple[int, int] = self.board.board_to_visual_coords(*instruction['pos'], self.board.display_style)
+            target : ChessPiece|None = self.board.get_at(target_pos)
+            if target: target.switch_type(instruction['new_type'])
+        elif instruction_type == 'check':
+            self.game.alert_player('Check!')
+        elif instruction_type == 'checkmate':
+            self.switch_to_gameover('Checkmate!')
+        elif instruction_type == 'stalemate':
+            self.switch_to_gameover("Stalemate!")
+        elif instruction_type == 'insufficent_material':
+            self.switch_to_gameover("Draw!")
+    
     def handle_piece_release(self, event : pygame.Event):
         piece : ChessPiece = event.piece
         drag_id : int = event.drag_id
@@ -130,33 +166,8 @@ class ChessBaseGameState(NormalGameState):
         self.held_piece = None
         piece.zindex = 0
         for instruction in extra_instructions:
-            instruction_type : str = instruction['type']
-            if instruction_type == 'capture_at':
-                ignore_count : int = 0
-                while True:
-                    to_capture : ChessPiece|None = self.board.get_at(self.board.board_to_visual_coords(*instruction['pos'], self.board.display_style), ignore_count)
-                    if not to_capture: break
-                    if to_capture == piece: 
-                        ignore_count += 1
-                        continue
-                    to_capture.capture()
-                    break
-            elif instruction_type == 'move_piece_to':
-                to_move : ChessPiece|None = self.board.get_at(self.board.board_to_visual_coords(*instruction['start_pos'], self.board.display_style))
-                if to_move: to_move.settle_on_board(self.board.board_to_visual_coords(*instruction['end_pos'], self.board.display_style))
-            elif instruction_type == 'change_type':
-                target_pos : tuple[int, int] = self.board.board_to_visual_coords(*instruction['pos'], self.board.display_style)
-                target : ChessPiece|None = self.board.get_at(target_pos)
-                if target: target.switch_type(instruction['new_type'])
-            elif instruction_type == 'check':
-                self.game.alert_player('Check!')
-            elif instruction_type == 'checkmate':
-                self.switch_to_gameover('Checkmate!')
-            elif instruction_type == 'stalemate':
-                self.switch_to_gameover("Stalemate!")
-            elif instruction_type == 'insufficent_material':
-                self.switch_to_gameover("Draw!")
-            self.after_move_made(old_board_coords, new_board_coords, {})
+            self.handle_sync_instruction(instruction, piece)
+        self.after_move_made(old_board_coords, new_board_coords, {})
     
     def after_move_made(self, start_pos : tuple[int, int], end_pos : tuple[int, int], bonus_info : game.chess_module.ChessMoveExtraInfo):
         pass

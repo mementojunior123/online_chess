@@ -56,6 +56,10 @@ class ChessBoard(Sprite):
                 else: return piece
         return None
     
+    def get_at_board_coords(self, board_coords : tuple[int, int], ignore : int = 0) -> Union['ChessPiece',None]:
+        return self.get_at(self.board_to_visual_coords(*board_coords, self.display_style), ignore=ignore)
+
+    
     def add_piece(self, piece_type : chess_module.PieceType, visual_coords : tuple[int, int]):
         self.pieces.append(ChessPiece.spawn(self, piece_type, visual_coords))
     

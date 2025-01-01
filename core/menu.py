@@ -198,7 +198,7 @@ class Menu(BaseMenu):
         BaseUiElements.new_button('BlueButton', 'Local', 1, 'midbottom', (centerx - 260, window_size[1] - 15), (0.5, 1.4), 
         {'name' : 'play_button'}, (Menu.font_40, 'Black', False)),
         BaseUiElements.new_button('BlueButton', 'Online', 1, 'midbottom', (centerx + 260, window_size[1] - 15), (0.5, 1.4), 
-        {'name' : 'play_button'}, (Menu.font_40, 'Black', False))], #stage 1
+        {'name' : 'online_button'}, (Menu.font_40, 'Black', False))], #stage 1
         ]
         self.bg_color = (94, 129, 162)
         self.add_connections()
@@ -220,3 +220,5 @@ class Menu(BaseMenu):
             case 1:
                 if name == "play_button":
                     pygame.event.post(pygame.Event(core_object.START_GAME, {}))
+                elif name == 'online_button':
+                    self.alert_player('Online mode is not available yet!')
