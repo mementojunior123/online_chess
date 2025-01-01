@@ -154,6 +154,12 @@ class ChessBaseGameState(NormalGameState):
                 self.switch_to_gameover('Checkmate!')
             elif instruction_type == 'stalemate':
                 self.switch_to_gameover("Stalemate!")
+            elif instruction_type == 'insufficent_material':
+                self.switch_to_gameover("Draw!")
+            self.after_move_made(old_board_coords, new_board_coords, {})
+    
+    def after_move_made(self, start_pos : tuple[int, int], end_pos : tuple[int, int], bonus_info : game.chess_module.ChessMoveExtraInfo):
+        pass
     
     def switch_to_gameover(self, message : str):
         core_object.event_manager.unbind(ChessPiece.PIECE_RELEASED, self.handle_piece_release)
@@ -193,6 +199,20 @@ class PvsCPUGameState(ChessBaseGameState):
 
     def cleanup(self):
         super().cleanup()
+
+class WaitingForOnlineGameState(NormalGameState):
+    def __init__(self, game_object : 'Game'):
+        super().__init__(game_object)
+    
+    def main_logic(self, delta : float):
+        super().main_logic(delta)
+    
+    def pause(self):
+        return
+        super().pause()
+
+class OnlinePvPGameState(ChessBaseGameState):
+    pass
 
 class LocalGameOverGameState(NormalGameState):
     def __init__(self, game_object : 'Game', board : 'ChessBoard', message : str):

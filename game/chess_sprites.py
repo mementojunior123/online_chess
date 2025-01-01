@@ -139,6 +139,16 @@ ChessBoard()
 Sprite.register_class(ChessBoard)
 
 TL = ChessBoard.TILE_SIZE
+def remove_outline(surf : pygame.Surface, colorkey = None) -> pygame.Surface:
+    return surf
+    mask : pygame.Mask = pygame.mask.from_surface(surf)
+    for point in mask.outline():
+        mask.set_at(point, 0)
+    new_surf : pygame.Surface = pygame.surface.Surface(surf.get_size())
+    new_surf = mask.to_surface(new_surf, setsurface=surf, unsetcolor=colorkey, setcolor=None, unsetsurface=None, dest=(0,0))
+    new_surf.set_colorkey(colorkey)
+    return new_surf
+
 class ChessPiece(Sprite):
     PIECE_RELEASED : int = pygame.event.custom_type()
 
@@ -146,8 +156,8 @@ class ChessPiece(Sprite):
     active_elements : list['ChessPiece'] = []
 
     PIECE_IMAGES : dict[chess_module.PieceType, pygame.Surface] = {piece_type : 
-    convert_alpha_to_colorkey(pygame.image.load_sized_svg(f'assets/graphics/chess_sets/regular/{piece_type.name.lower()}.svg', 
-                                                          (ChessBoard.IMAGE_SIZE, ChessBoard.IMAGE_SIZE)), (0, 255, 255)) 
+    remove_outline(convert_alpha_to_colorkey(pygame.image.load_sized_svg(f'assets/graphics/chess_sets/regular/{piece_type.name.lower()}.svg', 
+                                                          (ChessBoard.IMAGE_SIZE, ChessBoard.IMAGE_SIZE)), (0, 255, 255)),colorkey=(0,255,255))
     for piece_type in chess_module.PieceType if piece_type != chess_module.PieceType.EMPTY}
 
     def __init__(self):

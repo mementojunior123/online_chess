@@ -195,7 +195,9 @@ class Menu(BaseMenu):
         self.stage_data : list[dict] = [None, {}]
         self.stages = [None, 
         [BaseUiElements.new_text_sprite('Online Chess', (Menu.font_60, 'Black', False), 0, 'midtop', (centerx, 50)),
-        BaseUiElements.new_button('BlueButton', 'Play', 1, 'midbottom', (centerx, window_size[1] - 15), (0.5, 1.4), 
+        BaseUiElements.new_button('BlueButton', 'Local', 1, 'midbottom', (centerx - 260, window_size[1] - 15), (0.5, 1.4), 
+        {'name' : 'play_button'}, (Menu.font_40, 'Black', False)),
+        BaseUiElements.new_button('BlueButton', 'Online', 1, 'midbottom', (centerx + 260, window_size[1] - 15), (0.5, 1.4), 
         {'name' : 'play_button'}, (Menu.font_40, 'Black', False))], #stage 1
         ]
         self.bg_color = (94, 129, 162)

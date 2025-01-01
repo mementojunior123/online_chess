@@ -36,6 +36,10 @@ class PieceType(IntEnum):
     BLACK_KING = 11
     BLACK_PAWN = 12
 
+    def get_color(self) -> TeamType|None:
+        if self.value == 0: return None
+        return TeamType.WHITE if self.value <= 6 else TeamType.BLACK
+
 
 class ChessGame:
     def __init__(self):
@@ -61,12 +65,12 @@ class ChessGame:
             if not self.validate_move(start_pos, end_pos, bonus_info): return False
         PT = PieceType
         selected : PieceType = self.get_at(*start_pos)
-        team : TeamType = self.get_piece_color(selected)
+        team : TeamType = selected.get_color()
         if selected == PT.EMPTY:
             return False
         target : PieceType = self.get_at(*end_pos)
         if target != PT.EMPTY:
-            self.captured_pieces[self.get_piece_color(target)].append(target)
+            self.captured_pieces[target.get_color()].append(target)
             bonus_instructions.append({'type' : 'capture_at', 'pos' : end_pos})
         self.set_at(*end_pos, selected)
         self.set_at(*start_pos, PieceType.EMPTY)
@@ -95,7 +99,7 @@ class ChessGame:
             
 
         elif selected == PT.WHITE_ROOK or selected == PT.BLACK_ROOK:
-            team = self.get_piece_color(selected)
+            team = selected.get_color()
             if start_pos[0] == 1: self.castling_rights[team][0] = False
             if start_pos[0] == 8: self.castling_rights[team][1] = False
         
@@ -142,6 +146,9 @@ class ChessGame:
             bonus_instructions.append({'type' : 'checkmate'})
         elif not in_check and not has_legal_move:
             bonus_instructions.append({'type' : 'stalemate'})
+        else:
+            if not (self.has_checkmating_material(TeamType.WHITE) or self.has_checkmating_material(TeamType.BLACK)):
+                bonus_instructions.append({'type' : 'insufficent_material'})
         return bonus_instructions
     
     def will_end_turn_in_check(self, start_pos : tuple[int, int], end_pos : tuple[int, int], bonus_info : ChessMoveExtraInfo) -> bool:
@@ -154,12 +161,27 @@ class ChessGame:
     def has_legal_move(self, team : TeamType|None = None) -> bool:
         team = team or self.current_turn
         for coords, piece in self.get_all_pieces().items():
-            if self.get_piece_color(piece) != team: continue
+            if piece.get_color() != team: continue
             for end_y in range(1, 8 + 1):
                 for end_x in range(1, 8 + 1):
                     if self.validate_move(coords, (end_x, end_y), {}):
                         return (coords, (end_x, end_y))
         return False
+
+    def has_checkmating_material(self, team : TeamType|None = None) -> bool:
+        team = team or self.current_turn
+        piece_count : dict[PieceType, int] = {piece : 0 for piece in PieceType}
+        piece_total : int = 0
+        for coords, piece in self.get_all_pieces().items():
+            if piece.get_color() != team: continue
+            if piece == PieceType.WHITE_KING or piece == PieceType.BLACK_KING: continue
+            if piece.value % 6 in {1, 4, 5}: return True
+            piece_count[piece] += 1
+            piece_total += 1
+            if piece_total >= 3: return True
+            if piece_total == 2 and (piece_count[PieceType.WHITE_KNIGHT] + piece_count[PieceType.BLACK_KNIGHT]) < 2: return True
+        return False
+
 
     def is_check(self, defending_team : TeamType|None = None) -> bool:
         defending_team = defending_team or self.current_turn
@@ -168,7 +190,7 @@ class ChessGame:
     
     def is_square_attacked(self, target_x : int, target_y : int, attacking_team : TeamType) -> bool:
         for coords, piece in self.get_all_pieces().items():
-            if self.get_piece_color(piece) != attacking_team: continue
+            if piece.get_color() != attacking_team: continue
             valid_attack : bool = self.validate_movement(coords, (target_x, target_y), piece)
             if valid_attack: return True
         return False
@@ -181,11 +203,11 @@ class ChessGame:
         PT = PieceType
         selected_piece : PieceType = self.get_at(*start_pos)
         if selected_piece == PieceType.EMPTY: return False
-        team : TeamType = self.get_piece_color(selected_piece)
+        team : TeamType = selected_piece.get_color()
         if (team != self.current_turn): return False
         if start_pos[0] == end_pos[0] and start_pos[1] == end_pos[1]: return False
         target : PieceType|None = self.get_at(*end_pos)
-        if (self.get_piece_color(target) == self.get_piece_color(selected_piece)) and target is not None: return False
+        if (target.get_color() == selected_piece.get_color()) and target is not None: return False
         movement_is_valid : bool = self.validate_movement(start_pos, end_pos, selected_piece)
         if not movement_is_valid: return False
         if verify_turn_end_check:
@@ -193,7 +215,7 @@ class ChessGame:
         return True
     
     def validate_movement(self, start_pos : tuple[int, int], end_pos : tuple[int, int], piece : PieceType) -> bool:
-        team = self.get_piece_color(piece)
+        team = piece.get_color()
         if team is None: return False
         PT = PieceType
         match piece:
@@ -228,7 +250,7 @@ class ChessGame:
             y += direction_y
             current_tile : PieceType = self.get_at(x, y)
             if x == end_pos[0] and y == end_pos[1]:
-                return team != self.get_piece_color(current_tile)
+                return team != current_tile.get_color()
             if current_tile != PieceType.EMPTY:
                 return False
         return False
@@ -248,7 +270,7 @@ class ChessGame:
             y += direction_y
             current_tile : PieceType = self.get_at(x, y)
             if x == end_pos[0] and y == end_pos[1]:
-                return team != self.get_piece_color(current_tile)
+                return team != current_tile.get_color()
             if current_tile != PieceType.EMPTY:
                 return False
         return False
