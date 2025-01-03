@@ -219,6 +219,6 @@ class Menu(BaseMenu):
         match self.stage:
             case 1:
                 if name == "play_button":
-                    pygame.event.post(pygame.Event(core_object.START_GAME, {}))
+                    pygame.event.post(pygame.Event(core_object.START_GAME, {'mode' : 'local_pvp'}))
                 elif name == 'online_button':
-                    self.alert_player('Online mode is not available yet!')
+                    pygame.event.post(pygame.Event(core_object.START_GAME, {'mode' : 'online'}))

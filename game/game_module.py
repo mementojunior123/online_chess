@@ -37,7 +37,10 @@ class Game:
         self.game_timer = Timer(-1)
         self.game_data = {}
         self.make_connections()
-        self.state = self.STATES.PVPGameState(self)
+        if event.mode == 'local_pvp':
+            self.state = self.STATES.PVPGameState(self)
+        else:
+            self.state = self.STATES.WaitingForOnlineGameState(self)
 
         
     def alert_player(self, text : str, alert_speed : float = 1):

@@ -5,6 +5,7 @@ from random import shuffle, choice
 import random
 import game.chess_module
 import game.sprite
+import online.network_client
 import utils.tween_module as TweenModule
 from utils.ui.ui_sprite import UiSprite
 from utils.ui.textbox import TextBox
@@ -105,7 +106,7 @@ class ChessBaseGameState(NormalGameState):
         for instruction in extra_instructions:
             self.handle_sync_instruction(instruction)
     
-    def handle_sync_instruction(self, instruction : dict[str, Any], moved_piece : ChessPiece):
+    def handle_sync_instruction(self, instruction : dict[str, Any], moved_piece : 'ChessPiece'):
         instruction_type : str = instruction['type']
         if instruction_type == 'capture_at':
             ignore_count : int = 0
@@ -214,9 +215,59 @@ class PvsCPUGameState(ChessBaseGameState):
 class WaitingForOnlineGameState(NormalGameState):
     def __init__(self, game_object : 'Game'):
         super().__init__(game_object)
+        if core_object.is_web():
+            self.game.alert_player('Online PVP is not avaiable yet!')
+            self.game.state = ChessBaseGameState(self.game)
+        self.network_client : NetworkClient = NetworkClient()
+        self.network_client.connect_to_server()
+        self.make_network_connections()
+        self.network_client.receive_messages()
+        
+
+    def handle_network_event(self, event : pygame.Event):
+        match event.type:
+            case NetworkClient.NETWORK_MESSAGE_RECIVED:
+                data : bytes = event.data
+                print(f'Recieved data : {data}')
+                if data == b'GameOver':
+                    self.game.fire_gameover_event()
+            case NetworkClient.NETWORK_MESSAGE_FAILED:
+                data : bytes = event.data
+                progress : int = event.progress
+                print(f'Message sending failed at {progress}/{len(data)}')
+                return
+            case NetworkClient.NETWORK_MESSAGE_SENT:
+                data : bytes = event.data
+                print(f'Sent data: {data}')
+                return
+            case NetworkClient.NETWORK_SERVER_DISCONNECTED:
+                self.game.fire_gameover_event()
+                core_object.menu.alert_player('Server was disconnected!')
     
+    def make_network_connections(self):
+        core_object.event_manager.bind(NetworkClient.NETWORK_MESSAGE_RECIVED, self.handle_network_event)
+        core_object.event_manager.bind(NetworkClient.NETWORK_MESSAGE_FAILED, self.handle_network_event)
+        core_object.event_manager.bind(NetworkClient.NETWORK_MESSAGE_SENT, self.handle_network_event)
+        core_object.event_manager.bind(NetworkClient.NETWORK_SERVER_DISCONNECTED, self.handle_network_event)
+    
+    def remove_network_connections(self):
+        core_object.event_manager.unbind(NetworkClient.NETWORK_MESSAGE_RECIVED, self.handle_network_event)
+        core_object.event_manager.unbind(NetworkClient.NETWORK_MESSAGE_FAILED, self.handle_network_event)
+        core_object.event_manager.unbind(NetworkClient.NETWORK_MESSAGE_SENT, self.handle_network_event)
+        core_object.event_manager.unbind(NetworkClient.NETWORK_SERVER_DISCONNECTED, self.handle_network_event)
+    
+
     def main_logic(self, delta : float):
         super().main_logic(delta)
+    
+    def cleanup(self):
+        super().cleanup()
+        self.network_client.close()
+        core_object.task_scheduler.schedule_task(1, self.cleanup_network)
+        self.remove_network_connections()
+    
+    def cleanup_network(self):
+        self.network_client.cleanup()
     
     def pause(self):
         return
@@ -274,6 +325,12 @@ def runtime_imports():
     import game.chess_sprites
     from game.chess_sprites import ChessBoard, ChessPiece
 
+    if not core_object.is_web():
+        global online, NetworkClient
+        import online
+        online.network_client.init()
+        from online.network_client import NetworkClient
+
 
 class GameStates:
     NormalGameState = NormalGameState
@@ -283,3 +340,4 @@ class GameStates:
     PVPGameState = PVPGameState
     PvsCPUGameState = PvsCPUGameState
     LocalGameOverGameState = LocalGameOverGameState
+    WaitingForOnlineGameState = WaitingForOnlineGameState

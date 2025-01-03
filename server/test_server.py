@@ -7,6 +7,9 @@ import socket
 from time import sleep
 import _thread
 import game.chess_module as chess_module
+import online.network_client as network_client
+import pygame
+pygame.init()
 
 s = socket.socket()
 print("Socket successfully created")
@@ -26,17 +29,23 @@ print("socket is listening")
 def make_new_thread(connection1 : socket.socket, adress1 : Any):
     _thread.start_new_thread(manage_client, (connection1, adress1))
 
+network_client.init()
+from online.network_client import NetworkClient
 
-def manage_client(client1 : socket.socket, adress1 : Any):
-    client1.send(b'ConnectionEstablished')
-    client2, address2 = s.accept()
-    client1.send(b'GameStarting')
-    client2.send(b'GameStarting')
-    sleep(5)
-    client1.send(b'GameOver')
-    client2.send(b'GameOver')
+def manage_client(conn1 : socket.socket, adress1 : Any):
+    client1 : NetworkClient = NetworkClient(connection_socket=conn1, connection_ip='')
+    sleep(0.2)
+    client1.send_message(b'ConnectionEstablished')
+    #conn2, address2 = s.accept()
+    #client2 : NetworkClient = NetworkClient(connection_socket=conn2, connection_ip='')
+    client1.send_message(b'GameStarting')
+    #client2.send_message(b'GameStarting')
+    sleep(2)
+    client1.send_message(b'GameOver')
+    #client2.send_message(b'GameOver')
+    sleep(3)
     client1.close()
-    client2.close()
+    #client2.close()
     global current_thread_count
     current_thread_count -= 1
     print("Removing a trhead")
@@ -53,6 +62,6 @@ while True:
         current_thread_count += 1
         print('Making new thread')
         print(f'Current Trhead Count: {current_thread_count}')
-        sleep(0.1)
+        sleep(0.5)
     else:
         pass
