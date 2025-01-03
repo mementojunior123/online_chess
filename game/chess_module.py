@@ -12,6 +12,10 @@ class ChessMove(TypedDict):
     end_pos : tuple[int, int]
     extra_info : ChessMoveExtraInfo
 
+    @staticmethod
+    def new(start_pos : tuple[int, int], end_pos : tuple[int, int], bonus_info : ChessMoveExtraInfo) -> 'ChessMove':
+        return {'start_pos' : start_pos, 'end_pos' : end_pos, 'extra_info' : bonus_info}
+
 class TeamType(IntEnum):
     WHITE = 0
     BLACK = 1
@@ -419,3 +423,20 @@ class ChessGame:
 
 def number_to_string_coord(x : int, y : int):
     return 'abcdefgh'[x-1] + f'{y}' if (1 <= x <= 8) and (type(x) == int) else '??'
+
+
+def encode_move(move : ChessMove) -> bytes:
+    start_pos : tuple[int, int] = move['start_pos']
+    end_pos : tuple[int, int] = move['end_pos']
+    extra_info : ChessMoveExtraInfo = move['extra_info']
+    move_data : bytes = bytes([start_pos[0], start_pos[1], end_pos[0], end_pos[1]])
+    return move_data
+
+def decode_move(move_data : bytes) -> ChessMove:
+    start_x, start_y = move_data[0], move_data[1]
+    end_x, end_y = move_data[2], move_data[3]
+
+    start_pos : tuple[int, int] = (start_x, start_y)
+    end_pos : tuple[int, int] = (end_x, end_y)
+    move : ChessMove = {'start_pos' : start_pos, "end_pos" : end_pos, 'extra_info' : {}}
+    return move

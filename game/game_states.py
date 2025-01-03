@@ -104,7 +104,7 @@ class ChessBaseGameState(NormalGameState):
         piece : ChessPiece|None = self.board.get_at_board_coords(start_pos)
         piece.settle_on_board(self.board.board_to_visual_coords(*end_pos, self.board.display_style))
         for instruction in extra_instructions:
-            self.handle_sync_instruction(instruction)
+            self.handle_sync_instruction(instruction, piece)
     
     def handle_sync_instruction(self, instruction : dict[str, Any], moved_piece : 'ChessPiece'):
         instruction_type : str = instruction['type']
@@ -176,6 +176,7 @@ class ChessBaseGameState(NormalGameState):
     def switch_to_gameover(self, message : str):
         core_object.event_manager.unbind(ChessPiece.PIECE_RELEASED, self.handle_piece_release)
         self.game.state = LocalGameOverGameState(self.game, self.board, message)
+        self.remove_connections()
 
     
     def do_connections(self):
@@ -229,8 +230,9 @@ class WaitingForOnlineGameState(NormalGameState):
             case NetworkClient.NETWORK_MESSAGE_RECIVED:
                 data : bytes = event.data
                 print(f'Recieved data : {data}')
-                if data == b'GameOver':
-                    self.game.fire_gameover_event()
+                if data.startswith(b'GameStarting'):
+                    local_team = game.chess_module.TeamType.WHITE if data.removeprefix(b'GameStarting') == b'W' else game.chess_module.TeamType.BLACK
+                    self.start_online_game(local_team)
             case NetworkClient.NETWORK_MESSAGE_FAILED:
                 data : bytes = event.data
                 progress : int = event.progress
@@ -243,6 +245,10 @@ class WaitingForOnlineGameState(NormalGameState):
             case NetworkClient.NETWORK_SERVER_DISCONNECTED:
                 self.game.fire_gameover_event()
                 core_object.menu.alert_player('Server was disconnected!')
+    
+    def start_online_game(self, local_team : game.chess_module.TeamType):
+        self.game.state = OnlinePvPGameState(self.game, self.network_client, local_team)
+        self.remove_network_connections()
     
     def make_network_connections(self):
         core_object.event_manager.bind(NetworkClient.NETWORK_MESSAGE_RECIVED, self.handle_network_event)
@@ -274,7 +280,107 @@ class WaitingForOnlineGameState(NormalGameState):
         super().pause()
 
 class OnlinePvPGameState(ChessBaseGameState):
-    pass
+    def __init__(self, game_object : 'Game', network_client : 'NetworkClient', local_team : 'game.chess_module.TeamType'):
+
+        self.game = game_object
+        self.board : ChessBoard = ChessBoard.spawn(display_style=BoardDisplayStyle.STANDARD 
+                                                   if local_team == game.chess_module.TeamType.WHITE 
+                                                   else BoardDisplayStyle.BLACK_STANDARD)
+        self.held_piece : ChessPiece|None = None
+        game.chess_sprites.do_connections()
+        core_object.event_manager.bind(ChessPiece.PIECE_RELEASED, self.handle_piece_release)
+
+        self.network_client = network_client
+        self.local_team : game.chess_module.TeamType = local_team
+        if self.network_client.listening <= 0:
+            self.network_client.receive_messages()
+        if not self.network_client.connected:
+            self.network_client.connect_to_server()
+        self.make_network_connections()
+
+        self.can_make_move : bool = True
+        self.dc_timer : Timer|None = None
+        self.current_outcome : str|None = None
+
+    def switch_to_gameover(self, message : str, flag = False):
+        if not flag: 
+            self.current_outcome = message
+            self.can_make_move = False
+            self.dc_timer = Timer(3)
+            return
+        return super().switch_to_gameover(message)
+    
+    def main_logic(self, delta : float):
+        super().main_logic(delta)
+        if self.dc_timer:
+            if self.dc_timer.isover():
+                self.switch_to_gameover(self.current_outcome, flag=True)
+
+    def handle_network_event(self, event : pygame.Event):
+        match event.type:
+            case NetworkClient.NETWORK_MESSAGE_RECIVED:
+                data : bytes = event.data
+                print(f'Recieved data : {data}')
+                self.handle_network_message(data)
+            case NetworkClient.NETWORK_MESSAGE_FAILED:
+                data : bytes = event.data
+                progress : int = event.progress
+                print(f'Message sending failed at {progress}/{len(data)}')
+                return
+            case NetworkClient.NETWORK_MESSAGE_SENT:
+                data : bytes = event.data
+                print(f'Sent data: {data}')
+                return
+            case NetworkClient.NETWORK_SERVER_DISCONNECTED:
+                self.game.fire_gameover_event()
+                core_object.menu.alert_player('Server was disconnected!')
+    
+    def handle_network_message(self, message : bytes):
+        if message.startswith(b'GameOver'):
+            outcome : bytes = message.removeprefix(b'GameOver')
+            self.switch_to_gameover(str(outcome), flag=True)
+    
+        if message.startswith(b'OpponentMove'):
+            move_chosen : game.chess_module.ChessMove = game.chess_module.decode_move(message.removeprefix(b'OpponentMove'))
+            self.sync_move(move_chosen['start_pos'], move_chosen['end_pos'], move_chosen['extra_info'])
+        
+        if message.startswith(b'MadeInvalidMove'):
+            self.switch_to_gameover('Something went wrong in move validation!', flag=True)
+    
+    
+    def after_move_made(self, start_pos : tuple[int, int], end_pos : tuple[int, int], bonus_info : game.chess_module.ChessMoveExtraInfo):
+        move_data : bytes = game.chess_module.encode_move(game.chess_module.ChessMove.new(start_pos, end_pos, bonus_info))
+        netowrk_message : bytes = b'TryMove' + move_data
+        self.network_client.send_message(netowrk_message)
+    
+    def make_network_connections(self):
+        core_object.event_manager.bind(NetworkClient.NETWORK_MESSAGE_RECIVED, self.handle_network_event)
+        core_object.event_manager.bind(NetworkClient.NETWORK_MESSAGE_FAILED, self.handle_network_event)
+        core_object.event_manager.bind(NetworkClient.NETWORK_MESSAGE_SENT, self.handle_network_event)
+        core_object.event_manager.bind(NetworkClient.NETWORK_SERVER_DISCONNECTED, self.handle_network_event)
+    
+    def remove_network_connections(self):
+        core_object.event_manager.unbind(NetworkClient.NETWORK_MESSAGE_RECIVED, self.handle_network_event)
+        core_object.event_manager.unbind(NetworkClient.NETWORK_MESSAGE_FAILED, self.handle_network_event)
+        core_object.event_manager.unbind(NetworkClient.NETWORK_MESSAGE_SENT, self.handle_network_event)
+        core_object.event_manager.unbind(NetworkClient.NETWORK_SERVER_DISCONNECTED, self.handle_network_event)
+    
+
+
+    def is_piece_grabbable(self, piece : 'ChessPiece') -> bool:
+        piece_team : game.chess_module.TeamType = game.chess_module.ChessGame.get_piece_color(piece.type)
+        if piece_team != self.board.game.current_turn:
+            return False
+        if piece_team != self.local_team:
+            return False
+        return self.can_make_move
+
+    def cleanup(self):
+        super().cleanup()
+        self.network_client.send_message(b'Disconnecting')
+        core_object.task_scheduler.schedule_task(1, self.network_client.close)
+        core_object.task_scheduler.schedule_task(2, self.network_client.cleanup)
+        self.remove_network_connections()
 
 class LocalGameOverGameState(NormalGameState):
     def __init__(self, game_object : 'Game', board : 'ChessBoard', message : str):
@@ -282,14 +388,13 @@ class LocalGameOverGameState(NormalGameState):
         self.board = board
         self.game.alert_player(message)
         self.close_timer : Timer = Timer(3, time_source=game_object.game_timer.get_time)
-        game.chess_sprites.remove_connections()
     
     def main_logic(self, delta : float):
         if self.close_timer.isover():
             self.game.fire_gameover_event()
 
     def cleanup(self):
-        game.chess_sprites.remove_connections()
+        pass
 
 
 class PausedGameState(GameState):
@@ -321,9 +426,9 @@ def runtime_imports():
     import game.test_player
     from game.test_player import TestPlayer
 
-    global ChessBoard, ChessPiece
+    global ChessBoard, ChessPiece, BoardDisplayStyle
     import game.chess_sprites
-    from game.chess_sprites import ChessBoard, ChessPiece
+    from game.chess_sprites import ChessBoard, ChessPiece, BoardDisplayStyle
 
     if not core_object.is_web():
         global online, NetworkClient
@@ -341,3 +446,4 @@ class GameStates:
     PvsCPUGameState = PvsCPUGameState
     LocalGameOverGameState = LocalGameOverGameState
     WaitingForOnlineGameState = WaitingForOnlineGameState
+    OnlinePvPGameState = OnlinePvPGameState

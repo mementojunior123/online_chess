@@ -30,9 +30,9 @@ class ChessBoard(Sprite):
         ChessBoard.inactive_elements.append(self)
 
     @classmethod
-    def spawn(cls):
+    def spawn(cls, display_style : BoardDisplayStyle = BoardDisplayStyle.STANDARD):
         element = cls.inactive_elements[0]
-        element.display_style = BoardDisplayStyle.STANDARD
+        element.display_style = display_style
         element.image = cls.make_empty_board(cls.LIGHT_COLOR, cls.DARK_COLOR, cls.TILE_SIZE, element.display_style)
         element.rect = element.image.get_rect()
 
