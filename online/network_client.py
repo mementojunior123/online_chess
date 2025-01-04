@@ -2,6 +2,7 @@ import socket
 import _thread
 from time import perf_counter
 from typing import Callable
+from select import select
 
 class EventModuleShadow:
     @staticmethod
@@ -63,6 +64,9 @@ def init(use_pygame_events : bool = True):
             self.interrupt_wait : bool = False
             self.message_received_callback : Callable[[bytes, NetworkClient], None]|None = None
             self.buffer_next_message : bool = False
+
+        def update(self):
+            pass
             
         def close(self):
             self._closed = True

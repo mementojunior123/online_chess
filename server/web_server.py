@@ -4,6 +4,7 @@ from websockets.asyncio.server import serve
 from websockets.asyncio.server import ServerConnection
 import websockets
 
+PORT = 7999
 
 async def handler(websocket : ServerConnection):
     while True:
@@ -18,7 +19,7 @@ async def handler(websocket : ServerConnection):
 
 
 async def main():
-    async with serve(handler, "", 7999):
+    async with serve(handler, "", PORT):
         await asyncio.get_running_loop().create_future()  # run forever
 
 

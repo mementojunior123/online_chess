@@ -2,76 +2,40 @@ import sys
 import platform
 import pygame
 from pygame import event, Event
+import socket
 WEBPLATFORM = 'emscripten'
 
 NETWORK_MESSAGE_RECIVED = event.custom_type()
 NETWORK_SERVER_DISCONNECTED = event.custom_type()
 NETWORK_MESSAGE_SENT = event.custom_type()
 NETWORK_MESSAGE_FAILED = event.custom_type()
-class WebEvent:
-    
-
-    def __init__(self):
-        pass
-
-class MessageEventInterface(WebEvent):
-    def __init__(self):
-        self.data : str
-        self.origin : str
-        lastEventId : str
 
 
-class CloseEventInterface(WebEvent):
-    def __init__(self):
-        self.code : int
-        self.reason : str
-        self.wasClean : bool
-
-class WebSocketInterface:
-    def __init__(self, url : str, protocols : list[str] = None):
-        if protocols is None: protocols = []
-        self.url : str = url
-        self.protocol : str = ''
-        self.binaryType : str = 'blob'
-        self.bufferedAmount : int = 0
-        self.extensions : str = ''
-        self.readyState : int = 0
-    
-    def close(self, code : int = 1005, reason : str = 'Unknown'):
-        self.readyState = 3
-    
-    def send(self, data : str):
-        pass
-
-    @staticmethod
-    def onclose(event : WebEvent):
-        pass
-    
-    @staticmethod
-    def onmessage(event : MessageEventInterface):
-        pass
-
-if sys.platform == WEBPLATFORM:
-    WebSocket = WebSocketInterface
-    exec('WebSocket = platform.WebSocket')
-else:
+if sys.platform != WEBPLATFORM:
     raise ImportError('Imported the web client while offline!')
 
 class WebNetworkClient:
     UUID = 0
     PREFIX_LENTGH = 2
+    PORT = 7999
 
-    def __init__(self, url : str = 'http://localhost:7999/'):
-        self.socket = WebSocket(url)
-        self.socket.onmessage = self.handle_message_received_event
-        self.socket.onclose = self.handle_close_event
+    def __init__(self, url : str = f'http://localhost:{PORT}/', port_used : int|None = None):
+        self.socket = socket.socket()
+        self.socket.setblocking(False)
+
+        self.connection_ip : str = url
+        self.port : int = port_used or WebNetworkClient.PORT
         self._closed : bool = False
         self.identifier = WebNetworkClient.UUID
         WebNetworkClient.UUID += 1
-        self.connected : bool = True
+        self.connected : bool = False
         self.listening : int = 1
+
+        self.unread_data : bytes = bytes(0)
+        self.unsent_data : bytes = bytes(0)
     
     def connect_to_server(self):
+        self.socket.connect((self.connection_ip, self.port))
         self.connected = True
 
     def receive_messages(self, message_count : int = -1) -> bool:
@@ -80,16 +44,18 @@ class WebNetworkClient:
     
     def send_message(self, data : bytes) -> bool:
         if self._closed: return False
-        if self.socket.readyState == 0: return False
-        self.socket.send(data.decode())
+        if self.connected == False: return False
+        self.unsent_data += data
         pygame.event.post(Event(NETWORK_MESSAGE_SENT, {'data' : data, 'network' : self}))
         return True
     
-    def handle_message_received_event(self, event : MessageEventInterface):
-        data_received : bytes = bytes(event.data)
-        pygame.event.post(Event(NETWORK_MESSAGE_RECIVED, {'data' : data_received, 'network' : self}))
+    def send_message_received_event(self, data : bytes):
+        pygame.event.post(Event(NETWORK_MESSAGE_RECIVED, {'data' : data, 'network' : self}))
     
-    def handle_close_event(self, event : CloseEventInterface):
+    def send_message_sent_event(self, data : bytes):
+        pygame.event.post(Event(NETWORK_MESSAGE_SENT, {'data' : data, 'network' : self}))
+    
+    def send_dc_event(self):
         pygame.event.post(Event(NETWORK_SERVER_DISCONNECTED, {'network' : self}))
     
     def close(self):
