@@ -1,3 +1,6 @@
 **/__pycache__/**
 testin.py
 build
+**.spec
+dist
+exe_builder.py

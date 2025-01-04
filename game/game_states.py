@@ -223,7 +223,9 @@ class WaitingForOnlineGameState(NormalGameState):
         self.network_client.connect_to_server()
         self.make_network_connections()
         self.network_client.receive_messages()
-        
+
+        self.server_ready_delay : Timer = Timer(-1)
+        self.local_team : game.chess_module.TeamType|None = None
 
     def handle_network_event(self, event : pygame.Event):
         match event.type:
@@ -231,8 +233,11 @@ class WaitingForOnlineGameState(NormalGameState):
                 data : bytes = event.data
                 print(f'Recieved data : {data}')
                 if data.startswith(b'GameStarting'):
-                    local_team = game.chess_module.TeamType.WHITE if data.removeprefix(b'GameStarting') == b'W' else game.chess_module.TeamType.BLACK
-                    self.start_online_game(local_team)
+                    self.local_team = game.chess_module.TeamType.WHITE if data.removeprefix(b'GameStarting') == b'W' else game.chess_module.TeamType.BLACK
+                    self.server_ready_delay.set_duration(1.5)
+                    self.game.alert_player('Match Found!')
+                elif data.startswith(b'ConnectionEstablished'):
+                    self.game.alert_player('Connected to server!')
             case NetworkClient.NETWORK_MESSAGE_FAILED:
                 data : bytes = event.data
                 progress : int = event.progress
@@ -265,6 +270,8 @@ class WaitingForOnlineGameState(NormalGameState):
 
     def main_logic(self, delta : float):
         super().main_logic(delta)
+        if self.server_ready_delay.isover():
+            self.start_online_game(self.local_team)
     
     def cleanup(self):
         super().cleanup()
@@ -338,7 +345,7 @@ class OnlinePvPGameState(ChessBaseGameState):
     def handle_network_message(self, message : bytes):
         if message.startswith(b'GameOver'):
             outcome : bytes = message.removeprefix(b'GameOver')
-            self.switch_to_gameover(str(outcome), flag=True)
+            self.switch_to_gameover(outcome.decode(), flag=True)
     
         if message.startswith(b'OpponentMove'):
             move_chosen : game.chess_module.ChessMove = game.chess_module.decode_move(message.removeprefix(b'OpponentMove'))

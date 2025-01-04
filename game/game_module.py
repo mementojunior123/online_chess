@@ -44,6 +44,7 @@ class Game:
 
         
     def alert_player(self, text : str, alert_speed : float = 1):
+        if not self.game_timer: return
         text_sprite = TextSprite(pygame.Vector2(core_object.main_display.get_width() // 2, 90), 'midtop', 0, text, 
                         text_settings=(core_object.menu.font_60, 'White', False), text_stroke_settings=('Black', 2), colorkey=(0,255,0))
         
@@ -60,7 +61,6 @@ class Game:
         on_screen_time = 1 / alert_speed
         info_wait = TInfo(lambda t : t, on_screen_time)
         goal_wait = {}
-
         chain = TweenModule.TweenChain(text_sprite, [(info1, goal1), (info_wait, goal_wait), (info2, goal2)], True, time_source=self.game_timer.get_time)
         chain.register()
         chain.play()
@@ -111,6 +111,8 @@ class Game:
         pygame.event.post(new_event)
     
     def end_game(self):
+        if not self.active: return
+        self.active = False
         self.state.cleanup()
         self.remove_connections()
         self.cleanup()

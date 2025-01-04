@@ -429,12 +429,12 @@ def encode_move(move : ChessMove) -> bytes:
     start_pos : tuple[int, int] = move['start_pos']
     end_pos : tuple[int, int] = move['end_pos']
     extra_info : ChessMoveExtraInfo = move['extra_info']
-    move_data : bytes = bytes([start_pos[0], start_pos[1], end_pos[0], end_pos[1]])
+    move_data : bytes = bytes([start_pos[0] + 96, start_pos[1] + 96, end_pos[0] + 96, end_pos[1] + 96])
     return move_data
 
 def decode_move(move_data : bytes) -> ChessMove:
-    start_x, start_y = move_data[0], move_data[1]
-    end_x, end_y = move_data[2], move_data[3]
+    start_x, start_y = move_data[0] - 96, move_data[1] - 96
+    end_x, end_y = move_data[2] - 96, move_data[3] - 96
 
     start_pos : tuple[int, int] = (start_x, start_y)
     end_pos : tuple[int, int] = (end_x, end_y)

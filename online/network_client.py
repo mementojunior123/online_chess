@@ -1,6 +1,7 @@
 import socket
 import _thread
 from time import perf_counter
+from typing import Callable
 
 class EventModuleShadow:
     @staticmethod
@@ -43,6 +44,7 @@ def init(use_pygame_events : bool = True):
 
         PREFIX_LENTGH = 2
         BUFF_SIZE = 4096
+        UUID = 0
 
         def __init__(self, port : int = 40674, connection_ip : str = '127.0.0.1', connection_socket : socket.socket|None = None):
             self.socket : socket.socket = connection_socket or socket.socket()
@@ -54,6 +56,13 @@ def init(use_pygame_events : bool = True):
             self.connected : bool = False
             self.use_pygame_events : bool = USE_PYGAME_EVENTS
             self.untreated_data : bytes = bytes(0)
+            self.buffered_messages : list[bytes] = []
+            NetworkClient.UUID += 1
+            self.identifier : int = NetworkClient.UUID
+
+            self.interrupt_wait : bool = False
+            self.message_received_callback : Callable[[bytes, NetworkClient], None]|None = None
+            self.buffer_next_message : bool = False
             
         def close(self):
             self._closed = True
@@ -73,33 +82,55 @@ def init(use_pygame_events : bool = True):
             _thread.start_new_thread(self._receive_messages, (message_count,))
             return True
         
-        def wait_for_message(self) -> bytes:
+        def wait_for_message(self, use_buffer : bool = False) -> bytes|None:
             if self._closed: return
-            while True:
-                if self._closed: return
-                prefix : bytes = self.receive_prefix()
-                if prefix is None: return
-                msg_len : int = from_base_256(prefix)
-                data = self._receive_message(msg_len)
-                if data is None: return None
-                if data:
-                    if self.use_pygame_events: event.post(Event(NETWORK_MESSAGE_RECIVED, {'data' : data, 'network' : self}))
-                    break
-            return data
+            if self.interrupt_wait:
+                self.interrupt_wait = False
+                return
+            if self.buffered_messages and use_buffer:
+                to_return : bytes = self.buffered_messages.pop(0)
+                return to_return
+            prefix : bytes = self.receive_prefix()
+            if prefix is None: return
+            msg_len : int = from_base_256(prefix)
+            data = self._receive_message(msg_len)
+            if data is None: return None
+            if data:
+                if self.buffered_messages and use_buffer:
+                    self.buffered_messages.append(data)
+                    to_return : bytes = self.buffered_messages.pop(0)
+                    return to_return
+                else:
+                    if not self.buffer_next_message:
+                        self.release_message(data)
+                    else:
+                        self.buffer_next_message = False
+                        self.buffered_messages.append(data)
+                    return data
+        
+        def release_message(self, data : bytes):
+            if self.use_pygame_events: event.post(Event(NETWORK_MESSAGE_RECIVED, {'data' : data, 'network' : self}))
+            if self.message_received_callback: self.message_received_callback(data, self)
 
         def _receive_messages(self, message_count : int = -1):
             if self._closed: return
             self.listening += 1
             messages_received : int = 0
             while messages_received < message_count or (message_count < 0):
-                if self._closed: return
+                if self._closed: break
                 prefix : bytes = self.receive_prefix()
-                if prefix is None: return
+                if prefix is None: break
                 msg_len : int = from_base_256(prefix)
                 data = self._receive_message(msg_len)
                 if data:
                     messages_received += 1
-                    if self.use_pygame_events: event.post(Event(NETWORK_MESSAGE_RECIVED, {'data' : data, 'network' : self}))
+                    if not self.buffer_next_message:
+                        self.release_message(data)
+                    else:
+                        self.buffer_next_message = False
+                        self.buffered_messages.append(data)
+                else:
+                    break
             self.listening -= 1
         
         def receive_prefix(self) -> bytes|None:
@@ -108,6 +139,9 @@ def init(use_pygame_events : bool = True):
             while prefix_received < NetworkClient.PREFIX_LENTGH:
                 try:
                     if self._closed: return
+                    if self.interrupt_wait:
+                        self.interrupt_wait = False
+                        return
                     data = self.untreated_data or self.socket.recv(NetworkClient.BUFF_SIZE)
                     self.untreated_data = bytes(0)
                 except socket.timeout:
@@ -126,6 +160,9 @@ def init(use_pygame_events : bool = True):
             total_data : bytes = bytes(0)
             while data_received < lentgh:
                 if self._closed: return
+                if self.interrupt_wait:
+                    self.interrupt_wait = False
+                    return
                 try:
                     data = self.untreated_data or self.socket.recv(NetworkClient.BUFF_SIZE)
                     self.untreated_data = bytes(0)
@@ -133,6 +170,7 @@ def init(use_pygame_events : bool = True):
                     continue
                 if data == b'':
                     if self.use_pygame_events: event.post(Event(NETWORK_SERVER_DISCONNECTED, {'network' : self}))
+                    self.connected = False
                     return None
                 data_received += len(data)
                 total_data += data
@@ -169,6 +207,7 @@ def init(use_pygame_events : bool = True):
                     continue
                 if successful_sent == 0:
                     if self.use_pygame_events: event.post(Event(NETWORK_SERVER_DISCONNECTED, {'network' : self}))
+                    self.connected = False
                     if self.use_pygame_events: event.post(Event(NETWORK_MESSAGE_FAILED, {'data_sent' : data, 'progress' : bytes_sent - (final_byte_count - byte_count), 'network' : self}))
                     return
                 bytes_sent += successful_sent

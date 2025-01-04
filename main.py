@@ -3,7 +3,7 @@ import asyncio
 
 pygame.init()
 
-GAME_ICON = pygame.image.load('template_icon.png')
+GAME_ICON = pygame.image.load('assets/icons/template_icon.png')
 GAME_TITLE : str = "Online Chess"
 pygame.display.set_icon(GAME_ICON)
 
