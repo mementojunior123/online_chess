@@ -5,7 +5,6 @@ from random import shuffle, choice
 import random
 import game.chess_module
 import game.sprite
-import online.network_client
 import utils.tween_module as TweenModule
 from utils.ui.ui_sprite import UiSprite
 from utils.ui.textbox import TextBox
@@ -216,9 +215,9 @@ class PvsCPUGameState(ChessBaseGameState):
 class WaitingForOnlineGameState(NormalGameState):
     def __init__(self, game_object : 'Game'):
         super().__init__(game_object)
-        if core_object.is_web():
-            self.game.alert_player('Online PVP is not avaiable yet!')
-            self.game.state = ChessBaseGameState(self.game)
+        #if core_object.is_web():
+            #self.game.alert_player('Online PVP is not avaiable yet!')
+            #self.game.state = ChessBaseGameState(self.game)
         self.network_client : NetworkClient = NetworkClient()
         self.network_client.connect_to_server()
         self.make_network_connections()
@@ -232,6 +231,7 @@ class WaitingForOnlineGameState(NormalGameState):
             case NetworkClient.NETWORK_MESSAGE_RECIVED:
                 data : bytes = event.data
                 print(f'Recieved data : {data}')
+                core_object.set_debug_message(f'Recieved data : {data}')
                 if data.startswith(b'GameStarting'):
                     self.local_team = game.chess_module.TeamType.WHITE if data.removeprefix(b'GameStarting') == b'W' else game.chess_module.TeamType.BLACK
                     self.server_ready_delay.set_duration(1.5)
@@ -246,6 +246,7 @@ class WaitingForOnlineGameState(NormalGameState):
             case NetworkClient.NETWORK_MESSAGE_SENT:
                 data : bytes = event.data
                 print(f'Sent data: {data}')
+                core_object.set_debug_message(f'Sent data:  {data}')
                 return
             case NetworkClient.NETWORK_SERVER_DISCONNECTED:
                 self.game.fire_gameover_event()
@@ -299,10 +300,10 @@ class OnlinePvPGameState(ChessBaseGameState):
 
         self.network_client = network_client
         self.local_team : game.chess_module.TeamType = local_team
-        if self.network_client.listening <= 0:
-            self.network_client.receive_messages()
         if not self.network_client.connected:
             self.network_client.connect_to_server()
+        if self.network_client.listening <= 0:
+            self.network_client.receive_messages()
         self.make_network_connections()
 
         self.can_make_move : bool = True
@@ -437,11 +438,15 @@ def runtime_imports():
     import game.chess_sprites
     from game.chess_sprites import ChessBoard, ChessPiece, BoardDisplayStyle
 
+    global online, NetworkClient, WebNetworkClient
     if not core_object.is_web():
-        global online, NetworkClient
-        import online
+        import online.network_client
         online.network_client.init()
         from online.network_client import NetworkClient
+    else:
+        import online.web_network_client
+        from online.web_network_client import WebNetworkClient as NetworkClient
+        #WebNetworkClient = NetworkClient
 
 
 class GameStates:

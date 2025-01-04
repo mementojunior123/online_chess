@@ -71,6 +71,22 @@ def init(use_pygame_events : bool = True):
             self.socket.shutdown(socket.SHUT_RDWR)
             self.socket.close()
         
+        def peek(self) -> bool:
+            if self._closed: return False
+            timeout : float|None = self.socket.timeout
+            self.socket.settimeout(0.0)
+            ready_read : list[socket.socket] = (select([self.socket], [], [], 0.0))[0]
+            result : bool = False
+            if self.socket in ready_read:
+                try:
+                    self.untreated_data += self.socket.recv(NetworkClient.BUFF_SIZE)
+                    result = True
+                except Exception as e:
+                    pass
+
+            self.socket.settimeout(timeout)
+            return result
+        
         
         def connect_to_server(self):
             self.socket.connect((self.connection_ip, self.port))
@@ -84,9 +100,6 @@ def init(use_pygame_events : bool = True):
         
         def wait_for_message(self, use_buffer : bool = False) -> bytes|None:
             if self._closed: return
-            if self.interrupt_wait:
-                self.interrupt_wait = False
-                return
             if self.buffered_messages and use_buffer:
                 to_return : bytes = self.buffered_messages.pop(0)
                 return to_return
@@ -139,9 +152,6 @@ def init(use_pygame_events : bool = True):
             while prefix_received < NetworkClient.PREFIX_LENTGH:
                 try:
                     if self._closed: return
-                    if self.interrupt_wait:
-                        self.interrupt_wait = False
-                        return
                     data = self.untreated_data or self.socket.recv(NetworkClient.BUFF_SIZE)
                     self.untreated_data = bytes(0)
                 except socket.timeout:
@@ -160,9 +170,6 @@ def init(use_pygame_events : bool = True):
             total_data : bytes = bytes(0)
             while data_received < lentgh:
                 if self._closed: return
-                if self.interrupt_wait:
-                    self.interrupt_wait = False
-                    return
                 try:
                     data = self.untreated_data or self.socket.recv(NetworkClient.BUFF_SIZE)
                     self.untreated_data = bytes(0)

@@ -224,4 +224,6 @@ class Menu(BaseMenu):
                     if not core_object.is_web():
                         pygame.event.post(pygame.Event(core_object.START_GAME, {'mode' : 'online'}))
                     else:
-                        self.alert_player('This functionality is not available in web!')
+                        #self.alert_player('This functionality is not available in web!')
+                        #return
+                        pygame.event.post(pygame.Event(core_object.START_GAME, {'mode' : 'online'}))

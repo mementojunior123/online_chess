@@ -51,10 +51,8 @@ def manage_client(conn1 : socket.socket, adress1 : Any):
     print(f'{order[0]}-->', end='')
     if order[0] == b'W':
         client1_team = chess_module.TeamType.WHITE
-        first_client = client1
     else:
         client1_team = chess_module.TeamType.BLACK
-        first_client = client2
     print(first_client.identifier)
     client2_team = client1_team.opposite()
     outcome1 : bytes = b'None'
@@ -62,63 +60,60 @@ def manage_client(conn1 : socket.socket, adress1 : Any):
     break_loop : bool = False
 
     other_message : bytes|None = None
+    message : bytes|None = None
 
     client1.send_message(b'GameStarting' + order[0])
     client2.send_message(b'GameStarting' + order[1])
-    current_client = first_client
-    other_client = client2 if current_client == client1 else client1
 
-    def handle_other_team_message(message : bytes, network : NetworkClient):
-        print(f'Other client sent {message}')
-        if message == b'Disconnecting':
-            global break_loop, outcome1, outcome2, other_message
-            other_network : NetworkClient
-            if network == client1:
-                other_network = client2
-            else:
-                other_network = client1
-            network.close()
-            
-            break_loop = True
-            outcome1 = b'Your opponent disconnected. You win!'
-            outcome2 = b'Your opponent disconnected. You win!'
-            sleep(0.01)
-            other_network.interrupt_wait = True
-        else:
-            network.buffered_messages.append(message)
+    current_client : NetworkClient
+    other_client : NetworkClient
     while True:
-        #print(current_client.identifier)
-        #other_client.message_received_callback = handle_other_team_message
-        #other_client.receive_messages(1)
-
-        current_client.buffer_next_message = False
-        current_client.message_received_callback = None
-        current_client.interrupt_wait = False
+        current_client = client1 if client1_team == game.current_turn else client2
+        other_client = client2 if current_client == client1 else client1
+        message = None
+        other_message = None
+        while message is None and other_message is None:
+            if current_client.peek():
+                try:
+                    message : bytes|None = current_client.wait_for_message(use_buffer=True)
+                    if message is None: message = b'Disconnecting'
+                except OSError:
+                    current_thread_count -= 1
+                    print("Removing a trhead")
+                    print(f'Current Trhead Count: {current_thread_count}')
+                    other_client.send_message(b'GameOverYour opponent disconnected. You win!')
+                    sleep(1.5)
+                    
+                    other_client.close()
+                    other_client.cleanup()
+                    current_client.close()
+                    current_client.cleanup()
+                    return
+            elif other_client.peek():
+                try:
+                    other_message : bytes|None = other_client.wait_for_message(use_buffer=True)
+                    if other_message is None: other_message = b'Disconnecting'
+                except OSError:
+                    current_thread_count -= 1
+                    print("Removing a trhead")
+                    print(f'Current Trhead Count: {current_thread_count}')
+                    current_client.send_message(b'GameOverYour opponent disconnected. You win!')
+                    sleep(1.5)          
+                    other_client.close()
+                    other_client.cleanup()
+                    current_client.close()
+                    current_client.cleanup()
+                    return
         
-        try:
-            message : bytes|None = current_client.wait_for_message(use_buffer=True)
-        except OSError:
-            other_client.send_message(b'GameOverYour opponent disconnected. You win!')
-            sleep(1.5)
-            global current_thread_count
-            current_thread_count -= 1
-            print("Removing a trhead")
-            print(f'Current Trhead Count: {current_thread_count}')
-            other_client.message_received_callback = None
-            other_client.close()
-            other_client.cleanup()
-            current_client.close()
-            current_client.cleanup()
-            return
+        print(f'Received {message or other_message}')
         
-        if message is None:
+        if other_message == b'Disconnecting':
             break_loop = True
             outcome1 = b'Your opponent disconnected. You win!'
             outcome2 = b'Your opponent disconnected. You win!'
-            break
-        print(f'Received {message}')
-        if message == b'Disconnecting':
-            #print(current_client.untreated_data, current_client.buffered_messages)
+            other_client.close() 
+
+        elif message == b'Disconnecting':
             current_client.close()
             outcome1 = b'Your opponent disconnected. You win!'
             outcome2 = b'Your opponent disconnected. You win!'
@@ -153,9 +148,7 @@ def manage_client(conn1 : socket.socket, adress1 : Any):
                 break
         if break_loop:
             break
-        other_client.message_received_callback = None
-        current_client = client1 if client1_team == game.current_turn else client2
-        other_client = client2 if current_client == client1 else client1
+        
     
     sleep(0.1)
     client1.send_message(b'GameOver' + outcome1)
