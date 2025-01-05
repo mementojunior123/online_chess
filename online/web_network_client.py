@@ -88,6 +88,7 @@ class WebNetworkClient:
     def poll_data(self) -> bool:
         ready_read : list[socket.socket] = (select([self.socket], [], [], 0.0))[0]
         if self.socket not in ready_read: return False
+        if not self.connected: return False
         data : bytes = self.socket.recv(WebNetworkClient.BUFF_SIZE)
         if data == b'':
             self.send_dc_event()
@@ -97,8 +98,9 @@ class WebNetworkClient:
 
     def process_send_queue(self) -> bool:
         if not self.unsent_data: return False
-        ready_write : list[socket.socket] = (select([], [self.socket], [], 0.0))[1]
+        ready_write : list[socket.socket] = (select([self.socket], [self.socket], [self.socket], 0.0))[1]
         if self.socket not in ready_write: return False
+        if not self.connected: return False
         result : int = self.socket.send(self.unsent_data)
         if result == 0: 
             self.send_dc_event()
@@ -117,21 +119,45 @@ class WebNetworkClient:
         if message:
             self.send_message_received_event(message)
         return True
+    
+    @staticmethod
+    def is_socket_alive(sock : socket.socket) -> bool:
+        data_sent : int = 0
+        try:
+            result : int = sock.send((bytes(convert_to_base_256(1, min_chars=WebNetworkClient.PREFIX_LENTGH)) + bytes([90]))[data_sent:])
+        except:
+            return False
+        if result == 0: return False
+        if result >= 3: return True
+        data_sent += result
+        while data_sent < 3:
+            try:
+                result = sock.send((bytes(convert_to_base_256(1, min_chars=WebNetworkClient.PREFIX_LENTGH)) + bytes([90]))[data_sent:])
+            except:
+                return False
+            if result == 0: return False
+            data_sent += result
         
+        return True     
     
     async def connect_to_server(self):
         start_time = perf_counter()
-        while perf_counter() < start_time + 1.7:
+        while perf_counter() < start_time + 60:
             try:
                 self.socket.connect((self.connection_ip, self.port))
             except BlockingIOError:
                 await asyncio.sleep(0)
+                if self.is_socket_alive(self.socket):
+                    #print('socket alive')
+                    self.connected = True
+                    return
             except OSError as e:
                 if e.errno in {30, 106} or e.winerror in {10056}:
                     self.connected = True
                     return
                 print(e)
             else:
+                self.connected = '???'
                 return
     def receive_messages(self, message_count : int = -1) -> bool:
         if self._closed: return False

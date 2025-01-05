@@ -228,10 +228,10 @@ class WaitingForOnlineGameState(NormalGameState):
     async def make_network(self):
         self.network_client = NetworkClient(None, 'localhost')
         await self.network_client.connect_to_server()
-        print('WE made it')
-        self.network_client.connected = True
+        #print('WE made it', self.network_client.connected)
         self.make_network_connections()
         self.network_client.receive_messages()
+        #await asyncio.sleep(0)
 
     def handle_network_event(self, event : pygame.Event):
         match event.type:

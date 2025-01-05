@@ -66,18 +66,46 @@ def manage_client(conn1 : socket.socket, adress1 : Any):
     client1.socket.settimeout(SOCKET_TIMEOUT)
     print(adress1)
     grab_socket_ok = False
-    sleep(3)
-    client1.send_message(b'ConnectionEstablished')
-    #sleep(2)
+    try:
+        client1._send_message(b'ConnectionEstablished')
+    except ConnectionAbortedError:
+        current_thread_count -= 1
+        print('client aborted connection')
+        print("Removing a trhead")
+        print(f'Current Trhead Count: {current_thread_count}')
+        grab_socket_ok = True
+        return
+    except Exception as e:
+        current_thread_count -= 1
+        print("Encountered unkwown error", e)
+        print("Removing a trhead")
+        print(f'Current Trhead Count: {current_thread_count}')
+        grab_socket_ok = True
+        return
+    #sleep(3)
     while True:
         conn2, address2 = s.accept()
-        #if adress1 != address2: break
+        print(address2)
         client2 : NetworkClient = NetworkClient(connection_socket=conn1, connection_ip='')
         client2.use_pygame_events = False
         client2.socket.settimeout(SOCKET_TIMEOUT)
-        client2.send_message(b'ConnectionEstablished')
-        sleep(2)
-        break
+        try:
+            client2._send_message(b'ConnectionEstablished')
+        except ConnectionAbortedError:
+            print('Client aborted connection')
+            print('Getting a new client')
+            client2.close()
+            client2.cleanup()
+            continue
+        except Exception as e:
+            print('Encountered unkown error', e)
+            print('Getting a new client')
+            client2.close()
+            client2.cleanup()
+            continue
+        else:
+            break
+
     if not is_socket_alive(client1.socket):
         current_thread_count -= 1
         make_new_thread(conn2, address2)
