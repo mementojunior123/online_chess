@@ -9,10 +9,10 @@ import _thread
 import game.chess_module as chess_module
 from random import shuffle, randint
 import online.network_client as network_client
-import pygame
-pygame.init()
+network_client.init(use_pygame_events=False)
 
 s = socket.socket()
+s.setblocking(True)
 print("Socket successfully created")
 
 # reserve a port
@@ -33,16 +33,62 @@ def make_new_thread(connection1 : socket.socket, adress1 : Any):
 network_client.init()
 from online.network_client import NetworkClient
 
+def is_socket_alive(sock : socket.socket) -> bool:
+    old_timeout = sock.gettimeout()
+    data_sent : int = 0
+    try:
+        sock.settimeout(10)
+        result : int = sock.send((bytes(network_client.convert_to_base_256(1, min_chars=NetworkClient.PREFIX_LENTGH)) + bytes([90]))[data_sent:])
+        sock.settimeout(old_timeout)
+    except:
+        return False
+    if result == 0: return False
+    if result >= 3: return True
+    data_sent += result
+    while data_sent < 3:
+        try:
+            sock.settimeout(10)
+            result = sock.send((bytes(network_client.convert_to_base_256(1, min_chars=NetworkClient.PREFIX_LENTGH)) + bytes([90]))[data_sent:])
+            sock.settimeout(old_timeout)
+        except:
+            return False
+        if result == 0: return False
+        data_sent += result
+    
+    return True
+
+
 def manage_client(conn1 : socket.socket, adress1 : Any):
-    global current_thread_count
+    global current_thread_count, grab_socket_ok
     SOCKET_TIMEOUT = 2
     client1 : NetworkClient = NetworkClient(connection_socket=conn1, connection_ip='')
-    sleep(0.2)
+    client1.use_pygame_events = False
     client1.socket.settimeout(SOCKET_TIMEOUT)
+    print(adress1)
+    grab_socket_ok = False
+    sleep(3)
     client1.send_message(b'ConnectionEstablished')
-    conn2, address2 = s.accept()
+    #sleep(2)
+    while True:
+        conn2, address2 = s.accept()
+        #if adress1 != address2: break
+        client2 : NetworkClient = NetworkClient(connection_socket=conn1, connection_ip='')
+        client2.use_pygame_events = False
+        client2.socket.settimeout(SOCKET_TIMEOUT)
+        client2.send_message(b'ConnectionEstablished')
+        sleep(2)
+        break
+    if not is_socket_alive(client1.socket):
+        current_thread_count -= 1
+        make_new_thread(conn2, address2)
+        current_thread_count += 1
+        print('Replacing thread')
+        print(f'Current Trhead Count: {current_thread_count}')
+        return
     client2 : NetworkClient = NetworkClient(connection_socket=conn2, connection_ip='')
+    client2.use_pygame_events = False
     client2.socket.settimeout(SOCKET_TIMEOUT)
+    
     order = [b'W', b'B'] if randint(0, 1) else [b'B', b'W']
     id1, id2 = client1.identifier, client2.identifier
     print(id1, id2)
@@ -53,7 +99,6 @@ def manage_client(conn1 : socket.socket, adress1 : Any):
         client1_team = chess_module.TeamType.WHITE
     else:
         client1_team = chess_module.TeamType.BLACK
-    print(first_client.identifier)
     client2_team = client1_team.opposite()
     outcome1 : bytes = b'None'
     outcome2 : bytes = b'None'
@@ -64,8 +109,9 @@ def manage_client(conn1 : socket.socket, adress1 : Any):
 
     client1.send_message(b'GameStarting' + order[0])
     client2.send_message(b'GameStarting' + order[1])
-
-    current_client : NetworkClient
+    grab_socket_ok = True
+    current_client : NetworkClient = client1 if client1_team == game.current_turn else client2
+    print(current_client.identifier)
     other_client : NetworkClient
     while True:
         current_client = client1 if client1_team == game.current_turn else client2
@@ -104,14 +150,18 @@ def manage_client(conn1 : socket.socket, adress1 : Any):
                     current_client.close()
                     current_client.cleanup()
                     return
-        
+
+            sleep(0.05)
         print(f'Received {message or other_message}')
         
         if other_message == b'Disconnecting':
             break_loop = True
             outcome1 = b'Your opponent disconnected. You win!'
             outcome2 = b'Your opponent disconnected. You win!'
-            other_client.close() 
+            other_client.close()
+        
+        elif other_message is not None:
+            continue
 
         elif message == b'Disconnecting':
             current_client.close()
@@ -165,14 +215,18 @@ def manage_client(conn1 : socket.socket, adress1 : Any):
 
 MAX_THREAD_COUNT = 3
 current_thread_count : int = 0
+grab_socket_ok : bool = True
 
 while True:
     if current_thread_count <= MAX_THREAD_COUNT:
+        if not grab_socket_ok:
+            sleep(0.2)
+            continue
         c, addr = s.accept()
         make_new_thread(c, addr)
         current_thread_count += 1
         print('Making new thread')
         print(f'Current Trhead Count: {current_thread_count}')
-        sleep(0.5)
+        sleep(3)
     else:
         pass

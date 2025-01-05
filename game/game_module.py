@@ -32,7 +32,7 @@ class Game:
 
         
 
-    def start_game(self, event : pygame.Event):
+    async def start_game(self, event : pygame.Event):
         self.active = True
         self.game_timer = Timer(-1)
         self.game_data = {}
@@ -41,6 +41,7 @@ class Game:
             self.state = self.STATES.PVPGameState(self)
         else:
             self.state = self.STATES.WaitingForOnlineGameState(self)
+            await self.state.make_network()
 
         
     def alert_player(self, text : str, alert_speed : float = 1):

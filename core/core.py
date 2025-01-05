@@ -68,11 +68,11 @@ class Core:
         self.event_manager.bind(self.START_GAME, self.start_game)
         self.event_manager.bind(self.END_GAME, self.end_game)
     
-    def start_game(self, event : pygame.Event):
+    async def start_game(self, event : pygame.Event):
         if event.type != self.START_GAME: return
         
         self.menu.prepare_exit()
-        self.game.start_game(event)
+        await self.game.start_game(event)
 
         core_object.event_manager.bind(pygame.MOUSEBUTTONDOWN, Sprite.handle_mouse_event)
         core_object.event_manager.bind(pygame.FINGERDOWN, Sprite.handle_touch_event)

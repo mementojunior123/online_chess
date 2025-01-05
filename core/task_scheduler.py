@@ -40,7 +40,7 @@ class TaskScheduler:
         for task in self.continous_tasks:
             task.execute()
             if self.continous_tasks[task].isover():
-                to_remove
+                to_remove.append(task)
 
         for task in to_remove:
             self.continous_tasks.pop(task)

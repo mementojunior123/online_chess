@@ -4,7 +4,7 @@ from websockets.asyncio.server import serve
 from websockets.asyncio.server import ServerConnection
 import websockets
 
-PORT = 7999
+PORT = 40674
 
 async def handler(websocket : ServerConnection):
     while True:

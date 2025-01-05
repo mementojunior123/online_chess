@@ -202,12 +202,14 @@ class Menu(BaseMenu):
         ]
         self.bg_color = (94, 129, 162)
         self.add_connections()
+
+        self.started_game : bool = False
     
     def update(self, delta : float):
         stage_data = self.stage_data[self.stage]
         match self.stage:
             case 1:
-                pass
+                self.started_game = False
     
     def handle_tag_event(self, event : pygame.Event):
         if event.type != UiSprite.TAG_EVENT:
@@ -219,11 +221,16 @@ class Menu(BaseMenu):
         match self.stage:
             case 1:
                 if name == "play_button":
+                    if self.started_game: return
                     pygame.event.post(pygame.Event(core_object.START_GAME, {'mode' : 'local_pvp'}))
+                    self.started_game = True
                 elif name == 'online_button':
+                    if self.started_game: return
                     if not core_object.is_web():
                         pygame.event.post(pygame.Event(core_object.START_GAME, {'mode' : 'online'}))
+                        self.started_game = True
                     else:
                         #self.alert_player('This functionality is not available in web!')
                         #return
                         pygame.event.post(pygame.Event(core_object.START_GAME, {'mode' : 'online'}))
+                        self.started_game = True

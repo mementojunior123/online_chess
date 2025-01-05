@@ -1,6 +1,6 @@
 import pygame
 from sys import exit
-
+from asyncio.coroutines import iscoroutine, iscoroutinefunction
 class EventManger:
     def __init__(self) -> None:
         self.bound_actions : dict[int, list['function']] = {pygame.QUIT : [self.close_game]}
@@ -58,7 +58,10 @@ class EventManger:
         self.bound_actions.pop(event_type)
         return True
     
-    def process_event(self, event : pygame.Event):
+    async def process_event(self, event : pygame.Event):
         if event.type in self.bound_actions:
             for callback in self.bound_actions[event.type]:
-                callback(event)
+                if callback.__name__ == 'start_game':
+                    await callback(event)
+                else:
+                    callback(event)

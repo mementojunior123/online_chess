@@ -46,11 +46,12 @@ def init(use_pygame_events : bool = True):
         PREFIX_LENTGH = 2
         BUFF_SIZE = 4096
         UUID = 0
+        DEFAULT_PORT = 40674
 
-        def __init__(self, port : int = 40674, connection_ip : str = '127.0.0.1', connection_socket : socket.socket|None = None):
+        def __init__(self, port : int|None = None, connection_ip : str = '192.168.2.14', connection_socket : socket.socket|None = None):
             self.socket : socket.socket = connection_socket or socket.socket()
             self.socket.settimeout(1)
-            self.port : int = port
+            self.port : int = port or NetworkClient.DEFAULT_PORT
             self.connection_ip : str = connection_ip
             self._closed : bool = False
             self.listening : int = 0

@@ -54,7 +54,7 @@ async def main():
     while 1:
         core.update_dt(60)
         for event in pygame.event.get():
-            core.event_manager.process_event(event)
+            await core.event_manager.process_event(event)
 
         if core.game.active == False:
             window.fill(core.menu.bg_color)

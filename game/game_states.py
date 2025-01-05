@@ -16,6 +16,8 @@ from game.sprite import Sprite
 from utils.helpers import average, random_float
 from utils.ui.brightness_overlay import BrightnessOverlay
 
+import asyncio
+
 class GameState:
     def __init__(self, game_object : 'Game'):
         self.game = game_object
@@ -218,13 +220,18 @@ class WaitingForOnlineGameState(NormalGameState):
         #if core_object.is_web():
             #self.game.alert_player('Online PVP is not avaiable yet!')
             #self.game.state = ChessBaseGameState(self.game)
-        self.network_client : NetworkClient = NetworkClient()
-        self.network_client.connect_to_server()
-        self.make_network_connections()
-        self.network_client.receive_messages()
+        self.network_client : NetworkClient
 
         self.server_ready_delay : Timer = Timer(-1)
         self.local_team : game.chess_module.TeamType|None = None
+    
+    async def make_network(self):
+        self.network_client = NetworkClient(None, 'localhost')
+        await self.network_client.connect_to_server()
+        print('WE made it')
+        self.network_client.connected = True
+        self.make_network_connections()
+        self.network_client.receive_messages()
 
     def handle_network_event(self, event : pygame.Event):
         match event.type:
@@ -271,14 +278,17 @@ class WaitingForOnlineGameState(NormalGameState):
 
     def main_logic(self, delta : float):
         super().main_logic(delta)
+        self.network_client.update()
         if self.server_ready_delay.isover():
             self.start_online_game(self.local_team)
     
     def cleanup(self):
         super().cleanup()
-        self.network_client.close()
-        core_object.task_scheduler.schedule_task(1, self.cleanup_network)
-        self.remove_network_connections()
+        self.network_client.send_message(b'Disconnecting')
+        core_object.task_scheduler.schedule_continuous_task(0.5, self.network_client.update)
+        core_object.task_scheduler.schedule_task(1, self.network_client.close)
+        core_object.task_scheduler.schedule_task(2, self.network_client.cleanup)
+        core_object.task_scheduler.schedule_task(3, self.remove_network_connections)
     
     def cleanup_network(self):
         self.network_client.cleanup()
@@ -320,6 +330,7 @@ class OnlinePvPGameState(ChessBaseGameState):
     
     def main_logic(self, delta : float):
         super().main_logic(delta)
+        self.network_client.update()
         if self.dc_timer:
             if self.dc_timer.isover():
                 self.switch_to_gameover(self.current_outcome, flag=True)
@@ -439,7 +450,7 @@ def runtime_imports():
     from game.chess_sprites import ChessBoard, ChessPiece, BoardDisplayStyle
 
     global online, NetworkClient, WebNetworkClient
-    if not core_object.is_web():
+    if (not core_object.is_web()) and False:
         import online.network_client
         online.network_client.init()
         from online.network_client import NetworkClient
