@@ -30,7 +30,7 @@ print("socket is listening")
 def make_new_thread(connection1 : socket.socket, adress1 : Any):
     _thread.start_new_thread(manage_client, (connection1, adress1))
 
-network_client.init()
+network_client.init(False)
 from online.network_client import NetworkClient
 
 def is_socket_alive(sock : socket.socket) -> bool:

@@ -229,7 +229,11 @@ class WaitingForOnlineGameState(NormalGameState):
         self.network_client = NetworkClient(None, 'localhost')
         await self.network_client.connect_to_server()
         #print('WE made it', self.network_client.connected)
-        self.make_network_connections()
+        if not self.network_client.connected:
+            self.game.fire_gameover_event()
+            core_object.menu.alert_player('Could not connect to server!')
+            return
+        self.make_network_connections()    
         self.network_client.receive_messages()
         #await asyncio.sleep(0)
 

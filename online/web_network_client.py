@@ -89,7 +89,14 @@ class WebNetworkClient:
         ready_read : list[socket.socket] = (select([self.socket], [], [], 0.0))[0]
         if self.socket not in ready_read: return False
         if not self.connected: return False
-        data : bytes = self.socket.recv(WebNetworkClient.BUFF_SIZE)
+        try:
+            data : bytes = self.socket.recv(WebNetworkClient.BUFF_SIZE)
+        except ConnectionResetError:
+            self.send_dc_event()
+            return False
+        except ConnectionAbortedError:
+            self.send_dc_event()
+            return False
         if data == b'':
             self.send_dc_event()
             return False
@@ -155,6 +162,9 @@ class WebNetworkClient:
                 if e.errno in {30, 106} or e.winerror in {10056}:
                     self.connected = True
                     return
+                if e.winerror in {10022}:
+                    self.connected = False
+                    return
                 print(e)
             else:
                 self.connected = '???'
@@ -187,7 +197,7 @@ class WebNetworkClient:
         self.unsent_data += final_data
         print('hello')
         pygame.event.post(Event(NETWORK_MESSAGE_SENT, {'data' : data, 'network' : self}))
-        self.update()
+        self.process_send_queue()
         return True
     
     def send_message_received_event(self, data : bytes):
