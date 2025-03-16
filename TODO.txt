@@ -12,5 +12,6 @@ Priority list
 -Implement underpromotion
 --------Networking----------
 ----High---
+Look into transitioning the newtorkclient into HTTP requests
 ----Med----
 ----Low----
