@@ -12,6 +12,6 @@ Priority list
 -Implement underpromotion
 --------Networking----------
 ----High---
-Look into transitioning the newtorkclient into HTTP requests
+Look into transitioning the newtorkclient into HTTP requests via pygame.aio.fetch
 ----Med----
 ----Low----
